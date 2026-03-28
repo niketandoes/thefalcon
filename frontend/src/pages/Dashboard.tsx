@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users, Plus, TrendingDown, TrendingUp, Receipt,
@@ -13,45 +13,61 @@ import ExpenseForm from '../components/forms/ExpenseForm';
 import type { ExpenseFormData } from '../components/forms/ExpenseForm';
 import type { Group, GroupDebt } from '../types';
 
-// ─── Mock Data (replace with API) ───────────────────────────────────────────
-const MOCK_GROUPS: Group[] = [
-  { id: '1', name: 'Miami Trip \'24', description: 'Spring break with the crew', created_at: new Date().toISOString() },
-  { id: '2', name: 'Apartment Utilities', description: 'Monthly rent & bills', created_at: new Date().toISOString() },
-];
-
-const MOCK_DEBTS: GroupDebt[] = [
-  { group_id: '1', group_name: 'Miami Trip \'24', you_owe: 0, you_are_owed: 45.00 },
-  { group_id: '2', group_name: 'Apartment Utilities', you_owe: 12.50, you_are_owed: 0 },
-];
+import { apiClient } from '../api/client';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [groups, setGroups] = useState<Group[]>(MOCK_GROUPS);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [debts, setDebts] = useState<GroupDebt[]>([]);
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupDesc, setNewGroupDesc] = useState('');
 
-  const totalOwed = MOCK_DEBTS.reduce((s, d) => s + d.you_are_owed, 0);
-  const totalToPay = MOCK_DEBTS.reduce((s, d) => s + d.you_owe, 0);
-
-  const handleCreateGroup = () => {
-    if (!newGroupName.trim()) return;
-    const newGroup: Group = {
-      id: String(groups.length + 1),
-      name: newGroupName,
-      description: newGroupDesc || null,
-      created_at: new Date().toISOString(),
-    };
-    setGroups([...groups, newGroup]);
-    setNewGroupName('');
-    setNewGroupDesc('');
-    setShowNewGroup(false);
+  const loadData = async () => {
+    try {
+      const [gRes, sRes] = await Promise.all([
+        apiClient.get('/groups/'),
+        apiClient.get('/expenses/dashboard/stats')
+      ]);
+      setGroups(gRes.data);
+      setDebts(sRes.data.group_debts || []);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
-  const handleNewExpense = (data: ExpenseFormData) => {
-    console.log('New expense created:', data);
-    setShowExpenseForm(false);
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const totalOwed = debts.reduce((s, d) => s + d.you_are_owed, 0);
+  const totalToPay = debts.reduce((s, d) => s + d.you_owe, 0);
+
+  const handleCreateGroup = async () => {
+    if (!newGroupName.trim()) return;
+    try {
+      await apiClient.post('/groups/', {
+        name: newGroupName,
+        description: newGroupDesc || null,
+      });
+      await loadData();
+      setNewGroupName('');
+      setNewGroupDesc('');
+      setShowNewGroup(false);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleNewExpense = async (data: ExpenseFormData) => {
+    try {
+      await apiClient.post('/expenses/', data);
+      await loadData();
+      setShowExpenseForm(false);
+    } catch (e: any) {
+      console.error(e.response?.data || e.message);
+    }
   };
 
   return (
@@ -102,7 +118,7 @@ export default function Dashboard() {
         <div className="mb-12">
           <h2 className="text-lg font-semibold text-white mb-4">Breakdown by Group</h2>
           <div className="space-y-3">
-            {MOCK_DEBTS.map((debt) => (
+            {debts.map((debt) => (
               <div
                 key={debt.group_id}
                 onClick={() => navigate(`/groups/${debt.group_id}`)}
@@ -145,7 +161,7 @@ export default function Dashboard() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {groups.map((group) => {
-              const debt = MOCK_DEBTS.find((d) => d.group_id === group.id);
+              const debt = debts.find((d) => d.group_id === group.id);
               const isPositive = (debt?.you_are_owed || 0) > (debt?.you_owe || 0);
               return (
                 <div

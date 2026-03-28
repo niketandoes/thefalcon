@@ -4,6 +4,7 @@ import { Mail, Lock, ScanLine } from 'lucide-react';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
 import { useAuthStore } from '../store/useAuthStore';
+import { apiClient } from '../api/client';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -19,18 +20,24 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
 
-    // ── Mock login (replace with real API call) ─────────────────────────
     try {
-      await new Promise((r) => setTimeout(r, 600));
-      if (email === 'demo@splititfair.com' && password === 'password') {
-        login(
-          { id: '1', email, full_name: 'Demo User', preferred_currency: 'USD' },
-          'mock-jwt-token-v2'
-        );
-        navigate('/dashboard');
-      } else {
-        setError('Invalid email or password. Try demo@splititfair.com / password');
-      }
+      const formParams = new URLSearchParams();
+      formParams.append('username', email);
+      formParams.append('password', password);
+      
+      const loginRes = await apiClient.post('/login/access-token', formParams, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      });
+      const token = loginRes.data.access_token;
+      
+      const userRes = await apiClient.get('/users/me', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      login(userRes.data, token);
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Invalid email or password.');
     } finally {
       setLoading(false);
     }

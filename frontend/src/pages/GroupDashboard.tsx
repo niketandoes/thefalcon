@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Receipt, History, Users, PlusCircle,
@@ -12,50 +12,59 @@ import ExpenseForm from '../components/forms/ExpenseForm';
 import type { ExpenseFormData } from '../components/forms/ExpenseForm';
 import type { Group, GroupMember } from '../types';
 
-// ─── Mock Data (replace with API) ───────────────────────────────────────────
-const MOCK_GROUPS: Record<string, Group> = {
-  '1': { id: '1', name: "Miami Trip '24", description: 'Spring break with the crew', created_at: new Date().toISOString() },
-  '2': { id: '2', name: 'Apartment Utilities', description: 'Monthly rent & bills', created_at: new Date().toISOString() },
-};
-
-const MOCK_MEMBERS: Record<string, GroupMember[]> = {
-  '1': [
-    { user_id: '1', full_name: 'Demo User', email: 'demo@splititfair.com', preferred_currency: 'USD', balance: 45.00 },
-    { user_id: '2', full_name: 'Alice Johnson', email: 'alice@test.com', preferred_currency: 'USD', balance: -20.00 },
-    { user_id: '3', full_name: 'Bob Williams', email: 'bob@test.com', preferred_currency: 'USD', balance: -25.00 },
-    { user_id: '6', full_name: 'Eve Parker', email: 'eve@test.com', preferred_currency: 'EUR', balance: 0 },
-  ],
-  '2': [
-    { user_id: '1', full_name: 'Demo User', email: 'demo@splititfair.com', preferred_currency: 'USD', balance: -12.50 },
-    { user_id: '4', full_name: 'Charlie Brown', email: 'charlie@test.com', preferred_currency: 'EUR', balance: 8.00 },
-    { user_id: '5', full_name: 'Diana Prince', email: 'diana@test.com', preferred_currency: 'GBP', balance: 4.50 },
-  ],
-};
-
-const GROUP_STATS: Record<string, { totalSpending: number; totalTransactions: number }> = {
-  '1': { totalSpending: 1240.00, totalTransactions: 8 },
-  '2': { totalSpending: 345.75, totalTransactions: 4 },
-};
+import { useAuthStore } from '../store/useAuthStore';
+import { apiClient } from '../api/client';
 
 export default function GroupDashboard() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const group = MOCK_GROUPS[id || ''];
-  const members = useMemo(() => MOCK_MEMBERS[id || ''] || [], [id]);
-  const stats = GROUP_STATS[id || ''] || { totalSpending: 0, totalTransactions: 0 };
+  const user = useAuthStore(s => s.user);
+
+  const [group, setGroup] = useState<Group | null>(null);
+  const [members, setMembers] = useState<GroupMember[]>([]);
+  const [stats, setStats] = useState({ totalSpending: 0, totalTransactions: 0 });
+  
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!id) return;
+    const loadGroup = async () => {
+      try {
+        const res = await apiClient.get(`/groups/${id}`);
+        setGroup(res.data);
+        setMembers(res.data.members || []);
+        // Placeholder stats until real endpoint is wired
+        setStats({ totalSpending: 0, totalTransactions: 0 });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadGroup();
+  }, [id]);
 
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [selectedMember, setSelectedMember] = useState<GroupMember | null>(null);
 
-  const myBalance = members.find((m) => m.user_id === '1')?.balance || 0;
+  const myBalance = members.find((m) => m.user_id === user?.id)?.balance || 0;
   const totalOwedToYou = members.filter((m) => m.balance < 0).reduce((s, m) => s + Math.abs(m.balance), 0);
-  const totalYouOwe = members.filter((m) => m.balance > 0 && m.user_id !== '1').reduce((s, m) => s + m.balance, 0);
+  const totalYouOwe = members.filter((m) => m.balance > 0 && m.user_id !== user?.id).reduce((s, m) => s + m.balance, 0);
 
-  const handleNewExpense = (data: ExpenseFormData) => {
-    console.log('Group expense created:', data);
-    setShowExpenseForm(false);
+  const handleNewExpense = async (data: ExpenseFormData) => {
+    try {
+      await apiClient.post('/expenses/', data);
+      setShowExpenseForm(false);
+      window.location.reload(); 
+    } catch (e: any) {
+      console.error(e.response?.data || e.message);
+    }
   };
+
+  if (loading) {
+    return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">Loading...</div>;
+  }
 
   if (!group) {
     return (
@@ -128,7 +137,7 @@ export default function GroupDashboard() {
           <h2 className="text-lg font-semibold text-white mb-4">Group Members</h2>
           <div className="space-y-3">
             {members.map((member) => {
-              const isYou = member.user_id === '1';
+              const isYou = member.user_id === user?.id;
               // positive balance = they owe you, negative = you owe them (from YOUR perspective)
               const balanceLabel = isYou
                 ? null

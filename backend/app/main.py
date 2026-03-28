@@ -19,3 +19,13 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Split It Fair API"}
+
+@app.get("/health")
+def health_check():
+    """Check DB connectivity using raw psycopg2 via app.database."""
+    from app.database import check_connection
+    is_connected = check_connection()
+    if is_connected:
+        return {"status": "healthy", "database": "connected"}
+    return {"status": "unhealthy", "database": "disconnected"}
+

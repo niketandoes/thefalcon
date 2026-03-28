@@ -5,6 +5,7 @@ import Select from '../common/Select';
 import Button from '../common/Button';
 import type { SplitType, RecurringFrequency, SplitEntry, Group, GroupMember } from '../../types';
 import { useAuthStore } from '../../store/useAuthStore';
+import { apiClient } from '../../api/client';
 
 interface ExpenseFormProps {
   groups: Group[];
@@ -28,19 +29,7 @@ export interface ExpenseFormData {
   recurring_day_of_month?: number;
 }
 
-// ─── Mock members per group (replace with API later) ─────────────────────
-const MOCK_MEMBERS: Record<string, GroupMember[]> = {
-  '1': [
-    { user_id: '1', full_name: 'Demo User', email: 'demo@splititfair.com', preferred_currency: 'USD', balance: 0 },
-    { user_id: '2', full_name: 'Alice', email: 'alice@test.com', preferred_currency: 'USD', balance: 0 },
-    { user_id: '3', full_name: 'Bob', email: 'bob@test.com', preferred_currency: 'USD', balance: 0 },
-  ],
-  '2': [
-    { user_id: '1', full_name: 'Demo User', email: 'demo@splititfair.com', preferred_currency: 'USD', balance: 0 },
-    { user_id: '4', full_name: 'Charlie', email: 'charlie@test.com', preferred_currency: 'EUR', balance: 0 },
-    { user_id: '5', full_name: 'Diana', email: 'diana@test.com', preferred_currency: 'GBP', balance: 0 },
-  ],
-};
+
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'INR', 'JPY', 'CAD', 'AUD'];
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -71,8 +60,17 @@ export default function ExpenseForm({ groups, preSelectedGroupId, onSubmit, onCa
   const [recurringDayOfWeek, setRecurringDayOfWeek] = useState(today.getDay());
   const [recurringDayOfMonth, setRecurringDayOfMonth] = useState(today.getDate());
 
-  // ─── Split entries (one per member in the selected group) ─────────────
-  const members = useMemo(() => MOCK_MEMBERS[groupId] || [], [groupId]);
+  const [members, setMembers] = useState<GroupMember[]>([]);
+
+  useEffect(() => {
+    if (!groupId) {
+      setMembers([]);
+      return;
+    }
+    apiClient.get(`/groups/${groupId}`).then(res => {
+      setMembers(res.data.members || []);
+    }).catch(console.error);
+  }, [groupId]);
   const [splits, setSplits] = useState<SplitEntry[]>([]);
 
   // Re-init splits when group or split type changes

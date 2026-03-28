@@ -5,6 +5,7 @@ import Input from '../components/common/Input';
 import Select from '../components/common/Select';
 import Button from '../components/common/Button';
 import { useAuthStore } from '../store/useAuthStore';
+import { apiClient } from '../api/client';
 
 const CURRENCIES = [
   { value: 'USD', label: '🇺🇸 USD — US Dollar' },
@@ -33,16 +34,33 @@ export default function RegisterPage() {
     setError('');
 
     try {
-      await new Promise((r) => setTimeout(r, 700));
+      // 1. Create the user
+      await apiClient.post('/register', {
+        email,
+        full_name: fullName,
+        password,
+        preferred_currency: currency
+      });
 
-      // ── Mock registration (replace with API call) ─────────────────────
-      login(
-        { id: '1', email, full_name: fullName, preferred_currency: currency },
-        'mock-jwt-token-registered'
-      );
+      // 2. Log them in to get the token
+      const formParams = new URLSearchParams();
+      formParams.append('username', email);
+      formParams.append('password', password);
+      
+      const loginRes = await apiClient.post('/login/access-token', formParams, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      });
+      const token = loginRes.data.access_token;
+      
+      // 3. Fetch their profile to populate the store
+      const userRes = await apiClient.get('/users/me', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      login(userRes.data, token);
       navigate('/dashboard');
-    } catch {
-      setError('Registration failed. Please try again.');
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
