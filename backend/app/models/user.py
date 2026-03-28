@@ -11,6 +11,7 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     full_name = Column(String, index=True)
+    preferred_currency = Column(String(3), nullable=False, default="USD")
     is_active = Column(Boolean(), default=True)
 
     # Relationships

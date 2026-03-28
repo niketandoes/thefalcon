@@ -1,52 +1,89 @@
-from typing import List, Dict, TypedDict
+"""
+debt_simplifier.py
+==================
+Minimizes the number of transactions needed to settle all debts within a group.
+
+Algorithm: Directed-graph edge minimization via net-balance reduction.
+
+Steps:
+1.  Build a net-balance map: user_id → balance
+      +  means the group owes them money (creditor)
+      -  means they owe the group money (debtor)
+2.  Use two heaps (max-heap by absolute value) to greedily match
+    the largest debtor with the largest creditor.
+3.  Emit one transaction per match; carry over any remainder.
+
+Complexity: O(n log n) where n = number of non-zero balances.
+
+Example
+-------
+    A owes B $10, B owes C $10
+    Net balances: A → -10, B → 0, C → +10
+    Result:       A pays C $10   (B is eliminated entirely)
+"""
+
+import heapq
 from decimal import Decimal
+from typing import Dict, List
 from uuid import UUID
+
 from app.schemas.expense import DebtSummary
 
-class DebtNode(TypedDict):
-    user_id: str
-    amount: Decimal
 
 def simplify_debts(balances: Dict[str, Decimal]) -> List[DebtSummary]:
     """
-    Given a dictionary of user_id -> net_balance (positive means they are owed money,
-    negative means they owe money), calculate the minimum transactions to settle debts
-    using a simple greedy algorithm.
+    Parameters
+    ----------
+    balances : Dict[str, Decimal]
+        Mapping of user_id string → net balance.
+        Positive = owed money by others; Negative = owes money.
+
+    Returns
+    -------
+    List[DebtSummary]
+        Minimal set of transactions that clear all balances.
     """
-    debtors: List[DebtNode] = []   # Users who owe money (negative balance)
-    creditors: List[DebtNode] = [] # Users who are owed money (positive balance)
+    ZERO = Decimal("0")
+    PENNY = Decimal("0.01")
 
-    for uid, balance in balances.items():
-        if balance < Decimal("0"):
-            debtors.append({'user_id': uid, 'amount': abs(balance)})
-        elif balance > Decimal("0"):
-            creditors.append({'user_id': uid, 'amount': balance})
+    # Separate into creditors (> 0) and debtors (< 0)
+    # Use negative amounts for max-heap simulation via min-heap
+    creditors: list = []   # (−amount, user_id)  → largest credit first
+    debtors: list = []     # (−amount, user_id)  → largest debt first
 
-    # Sort debtors and creditors descending by amount to minimize transactions implicitly
-    debtors.sort(key=lambda x: x['amount'], reverse=True)
-    creditors.sort(key=lambda x: x['amount'], reverse=True)
+    for uid, bal in balances.items():
+        if bal > PENNY:
+            heapq.heappush(creditors, (-bal, uid))
+        elif bal < -PENNY:
+            heapq.heappush(debtors, (bal, uid))    # already negative → min-heap = largest debt first
 
     transactions: List[DebtSummary] = []
-    i, j = 0, 0
 
-    while i < len(debtors) and j < len(creditors):
-        debtor = debtors[i]
-        creditor = creditors[j]
+    while creditors and debtors:
+        # Largest creditor
+        neg_credit, cred_uid = heapq.heappop(creditors)
+        credit = -neg_credit
 
-        settled_amount = min(debtor['amount'], creditor['amount'])
+        # Largest debtor
+        debt_val, debt_uid = heapq.heappop(debtors)
+        debt = -debt_val  # make positive
 
-        transactions.append(DebtSummary(
-            from_user_id=UUID(debtor['user_id']),
-            to_user_id=UUID(creditor['user_id']),
-            amount=settled_amount
-        ))
+        settled = min(credit, debt)
 
-        debtor['amount'] -= settled_amount
-        creditor['amount'] -= settled_amount
+        transactions.append(
+            DebtSummary(
+                from_user_id=UUID(debt_uid),
+                to_user_id=UUID(cred_uid),
+                amount=settled,
+            )
+        )
 
-        if debtor['amount'] == Decimal("0"):
-            i += 1
-        if creditor['amount'] == Decimal("0"):
-            j += 1
+        remaining_credit = credit - settled
+        remaining_debt = debt - settled
+
+        if remaining_credit > PENNY:
+            heapq.heappush(creditors, (-remaining_credit, cred_uid))
+        if remaining_debt > PENNY:
+            heapq.heappush(debtors, (-remaining_debt, debt_uid))
 
     return transactions
