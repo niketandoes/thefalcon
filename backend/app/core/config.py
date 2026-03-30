@@ -5,6 +5,8 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Split It Fair"
     API_V1_STR: str = "/api/v1"
     
+    DATABASE_URL: str | None = None
+    
     DB_HOST: str = "localhost"
     DB_USER: str = "postgres"
     DB_PASSWORD: str = ""
@@ -17,11 +19,20 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:
+        if self.DATABASE_URL:
+            return self.DATABASE_URL
         return f"postgresql+psycopg2://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
     
     @computed_field
     @property
     def ASYNC_SQLALCHEMY_DATABASE_URI(self) -> str:
+        if self.DATABASE_URL:
+            url = self.DATABASE_URL
+            if url.startswith("postgres://"):
+                url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+            elif url.startswith("postgresql://"):
+                url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+            return url
         return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore")

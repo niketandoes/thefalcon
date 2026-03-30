@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+DATABASE_URL = os.getenv("DATABASE_URL")
+
 # --- Connection config built from environment variables ---
 DB_CONFIG = {
     "host":     os.getenv("DB_HOST", "localhost"),
@@ -23,6 +25,8 @@ def get_connection():
     Caller is responsible for closing it.
     Prefer the get_cursor() context manager below for everyday use.
     """
+    if DATABASE_URL:
+        return psycopg2.connect(DATABASE_URL)
     return psycopg2.connect(**DB_CONFIG)
 
 
