@@ -27,9 +27,10 @@ class Settings(BaseSettings):
     @property
     def ASYNC_SQLALCHEMY_DATABASE_URI(self) -> str:
         if self.DATABASE_URL:
-            # asyncpg doesn't support sslmode query param directly in some versions
-            # and SQLAlchemy tries to pass it to the connect() function.
-            from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
+            # Cloud providers like Neon/Render add query params (sslmode, channel_binding)
+            # that cause TypeError in asyncpg because SQLAlchemy tries to pass them 
+            # as keyword arguments to connect(). We strip them for a clean connection.
+            from urllib.parse import urlparse, urlunparse
             
             url = self.DATABASE_URL
             # Replace scheme
@@ -38,12 +39,9 @@ class Settings(BaseSettings):
             elif url.startswith("postgresql://") and not url.startswith("postgresql+asyncpg://"):
                 url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
             
-            # Remove sslmode if present to avoid TypeError in asyncpg
+            # Strip all query parameters for asyncpg
             u = urlparse(url)
-            query = parse_qs(u.query)
-            query.pop('sslmode', None)
-            new_query = urlencode(query, doseq=True)
-            url = urlunparse(u._replace(query=new_query))
+            url = urlunparse(u._replace(query=""))
             return url
         return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
