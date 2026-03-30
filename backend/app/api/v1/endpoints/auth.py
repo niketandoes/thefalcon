@@ -19,7 +19,7 @@ from app.models.user import User
 from app.schemas.user import Token, UserCreate, UserResponse
 
 router = APIRouter()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__truncate_error=False)
 
 
 # ---------------------------------------------------------------------------
