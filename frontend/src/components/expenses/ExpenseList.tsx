@@ -6,7 +6,7 @@ interface Props {
   showGroup?: boolean;
 }
 
-export default function ExpenseList({ expenses, showGroup = false }: Props) {
+export default function ExpenseList({ expenses }: Props) {
   const fmt = (n: number) =>
     new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 

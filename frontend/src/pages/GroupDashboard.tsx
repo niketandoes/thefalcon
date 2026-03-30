@@ -8,7 +8,7 @@ import ExpenseList from '../components/expenses/ExpenseList';
 import NewExpenseForm from '../components/expenses/NewExpenseForm';
 import {
   Plus, UserPlus, Users, LogOut, ArrowLeft, Mail, X,
-  ChevronDown, ChevronUp, Crown,
+  ChevronDown, ChevronUp,
 } from 'lucide-react';
 
 export default function GroupDashboard() {
