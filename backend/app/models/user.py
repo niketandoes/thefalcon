@@ -9,7 +9,7 @@ class User(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(CITEXT, nullable=False, unique=True, index=True)
     full_name = Column(String(100), nullable=True)
-    hashed_password = Column(CHAR(60), nullable=False)
+    hashed_password = Column(String(255), nullable=False)
     preferred_currency = Column(CHAR(3), nullable=False, default="USD", server_default="USD")
     is_active = Column(Boolean(), default=True, server_default="true")
     created_at = Column(DateTime(timezone=True), server_default=func.now())

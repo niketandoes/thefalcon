@@ -24,7 +24,7 @@ CREATE TABLE users (
     id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     email               CITEXT      NOT NULL UNIQUE,
     full_name           VARCHAR(100),
-    hashed_password     CHAR(60)    NOT NULL,
+    hashed_password     VARCHAR(255) NOT NULL,
     preferred_currency  CHAR(3)     NOT NULL DEFAULT 'USD',
     is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
